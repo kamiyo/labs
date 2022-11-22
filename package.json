@@ -4,14 +4,14 @@
   "private": true,
   "devDependencies": {},
   "dependencies": {
-    "@material-ui/core": "^4.0.0-rc.0",
-    "@material-ui/icons": "^4.2.0",
-    "@material-ui/styles": "^4.1.1",
-    "create-react-class": "^15.6.3",
-    "mobile-detect": "^1.4.3",
+    "@emotion/react": "11.0.0",
+    "@emotion/styled": "11.0.0",
+    "@mui/material": "^5.10.14",
+    "create-react-class": "^15.7.0",
+    "mobile-detect": "^1.4.5",
     "process": "^0.11.10",
-    "react": "^16.8.6",
-    "react-dom": "^16.8.6",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
     "shadow-cljs": "^2.20.12"
   }
 }
