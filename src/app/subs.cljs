@@ -1,5 +1,6 @@
 (ns app.subs
- (:require [re-frame.core :refer [reg-sub subscribe]]))
+ (:require [re-frame.core :refer [reg-sub subscribe]]
+           [reagent.ratom :refer [reaction]]))
 
 (reg-sub
  :numerator-divisions
@@ -65,3 +66,10 @@
  :lcm
  (fn [db _]
    (:lcm db)))
+
+(reg-sub
+ :input-value
+ (fn [db [_ type]]
+   (if (nil? type)
+     (:tempo-input db)
+     (get-in db [type :input]))))

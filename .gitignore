@@ -18,3 +18,7 @@ pom.xml.asc
 
 .hgignore
 .hg/
+.clj-kondo/cache/
+.clj-kondo/.cache/
+.lsp/
+.calva/

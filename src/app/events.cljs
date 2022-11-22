@@ -34,11 +34,13 @@
                                     {:numerator (-> db :numerator :divisions)
                                      :denominator (-> db :denominator :divisions)}
                                     which parsed-int)
-         lcm (lcm (:numerator temp) (:denominator temp))]
+         lcm                       (lcm (:numerator temp) (:denominator temp))
+         tempo                     (-> cofx :db :tempo)]
      {:db       (-> (:db cofx)
                     (assoc-in [which :divisions] parsed-int)
                     (assoc-in [:lcm] lcm))
-      :dispatch [:change-last-beat-time (get-context-current-time)]})))
+      :fx [[:dispatch [:change-last-beat-time (get-context-current-time)]]
+           [:dispatch [:update-input [(.toFixed (* divisions tempo) 1) which]]]]})))
 
 (reg-event-db
  :inc-microbeat
@@ -78,17 +80,32 @@
  [check-spec-interceptor]
  (fn [cofx [_ args]]
    (if (> args 1)
-     {:dispatch [:change-last-beat-time (get-context-current-time)]})))
+     {:dispatch [:change-last-beat-time (get-context-current-time)]}
+     nil)))
 
 (reg-event-fx
  :change-tempo
  [check-spec-interceptor]
  (fn [cofx [_ new-value]]
-   (let [old-num (-> cofx :db :tempo)
-         new-num (js/parseFloat new-value)
-         new-num-adjusted (if (<= new-num 0) old-num new-num)]
-     {:db (assoc (:db cofx) :tempo new-num-adjusted)
-      :dispatch [:check-diff (Math/abs (- new-num-adjusted old-num))]})))
+   (let [old-tempo (-> cofx :db :tempo)
+         new-tempo (js/parseFloat new-value)
+         new-tempo-adjusted (if (<= new-tempo 0) old-tempo new-tempo)
+         den-div (-> cofx :db :denominator :divisions)
+         num-div (-> cofx :db :numerator :divisions)]
+     {:db (assoc (:db cofx) :tempo new-tempo-adjusted)
+      :fx [[:dispatch [:check-diff (Math/abs (- new-tempo-adjusted old-tempo))]]
+           [:dispatch [:update-input [(.toFixed new-tempo-adjusted 1)]]]
+           [:dispatch [:update-input [(.toFixed (* den-div new-tempo-adjusted) 1) :denominator]]]
+           [:dispatch [:update-input [(.toFixed (* num-div new-tempo-adjusted) 1) :numerator]]]]})))
+
+(reg-event-fx
+ :change-related-tempo
+ [check-spec-interceptor]
+ (fn [cofx [_ [tempo type]]]
+   (let [div (get-in cofx [:db type :divisions])]
+     {:fx [[:dispatch [:change-tempo (/ tempo div)]]
+          ;;  [:dispatch [:update-input [(.toFixed tempo 1) type]]]
+           ]})))
 
 (reg-event-db
  :toggle-playing
@@ -113,3 +130,11 @@
  [check-spec-interceptor]
  (fn [db [_ _]]
    (update-in db [:is-verbose?] not)))
+
+(reg-event-db
+ :update-input
+ [check-spec-interceptor]
+ (fn [db [_ [value type]]]
+   (if (nil? type)
+     (assoc db :tempo-input value)
+     (assoc-in db [type :input] value))))

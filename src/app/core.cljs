@@ -1,9 +1,10 @@
 (ns app.core
   (:require [re-frame.core :refer [dispatch-sync dispatch]]
             [reagent.core :as r]
+            [reagent.dom :as rdom]
             [app.polyrhythms.common :refer [worker init-audio]]
             [app.subs]
-            [app.routes :refer [init-app-routes]]
+            [app.routes :refer [init-app-routes!]]
             [app.styles]
             [app.nav]
             [app.events]
@@ -11,6 +12,7 @@
             [app.polyrhythms.sound :refer [lookahead scheduler]]
             [app.polyrhythms.animation]
             [stylefy.core :as stylefy]
+            [stylefy.reagent :as stylefy-reagent]
             ["mobile-detect" :as mobile-detect]))
 
 (defn listen-worker
@@ -32,15 +34,16 @@
 
 (defn start []
   (init-audio)
-  (init-app-routes)
+  (init-app-routes!)
   (.addEventListener ^js @worker "message" listen-worker)
   (.addEventListener ^js js/window "resize" listen-browser)
   (.postMessage ^js @worker (clj->js {:interval lookahead}))
   (listen-browser nil)
-  (r/render [app] (.getElementById js/document "app")))
+  (rdom/render [app] (.getElementById js/document "app")))
 
 (stylefy/init
- {:global-vendor-prefixed
+ {:dom (stylefy-reagent/init)
+  :global-vendor-prefixed
   {::stylefy/vendors      ["webkit" "moz" "o"]
    ::stylefy/auto-prefix #{:border-radius}}})
 

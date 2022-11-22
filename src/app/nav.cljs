@@ -59,7 +59,7 @@
 (defn menu []
   [:ul
    (use-style (menu-ul-style @(subscribe [:is-mobile?])))
-   (doall (for [route routes
+   (doall (for [[path route] routes
                 :let [active? (= @(subscribe [:route]) route)]]
             ^{:key route} [:li
                            (use-style menu-li-style)
@@ -67,7 +67,7 @@
                             [[name url] (condp = route
                                           :main ["main site" "https://www.seanchenpiano.com"]
                                           :github [(github-link) "https://github.com/kamiyo/labs"]
-                                          [(name route) (str "/" (name route))])
+                                          [(name route) path])
                              props      (condp contains? route
                                           #{:github :main} {:href url
                                                             :target "_blank"
@@ -103,12 +103,12 @@
                  :on-key-down #(toggle-drawer false)
                  :role        "presentation"}
            [mui/mlist
-            (doall (for [route routes
+            (doall (for [[path route] routes
                          :let  [active?    (= @(subscribe [:route]) route)
                                 [name url] (condp = route
                                              :main   ["main site" "https://www.seanchenpiano.com"]
                                              :github [(github-link true) "https://github.com/kamiyo/labs"]
-                                             [(name route) (str "/" (name route))])
+                                             [(name route) path])
                                 props      (condp contains? route
                                              #{:github :main} {:href url
                                                                :target "_blank"

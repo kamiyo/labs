@@ -13,11 +13,13 @@
 (s/def ::is-playing? boolean?)
 (s/def ::last-beat-time number?)
 (s/def ::divisions number?)
+(s/def ::input string?)
 (s/def ::microbeat number?)
 (s/def ::subdivision
   (s/keys :req-un
           [::divisions
-           ::microbeat]))
+           ::microbeat
+           ::input]))
 
 (s/def ::layout
   (s/keys :req-un
@@ -28,7 +30,9 @@
 
 (s/def ::numerator ::subdivision)
 (s/def ::denominator ::subdivision)
-(s/def ::route (set routes))
+(s/def ::route (set (map #(second %) routes)))
+
+(s/def ::tempo-input string?)
 
 (s/def ::db
   (s/keys :req-un
@@ -38,6 +42,7 @@
            ::denominator
            ::lcm
            ::tempo
+           ::tempo-input
            ::last-beat-time
            ::is-playing?
            ::is-verbose?]))
@@ -50,11 +55,14 @@
     :height 0}
    :route :polyrhythms
    :numerator {:divisions 3
-               :microbeat 0}
+               :microbeat 0
+               :input "180.0"}
    :denominator {:divisions 2
-                 :microbeat 0}
+                 :microbeat 0
+                 :input "120.0"}
    :lcm (lcm 3 2)
    :last-beat-time 0
    :tempo 60
+   :tempo-input "60.0"
    :is-playing? false
    :is-verbose? false})

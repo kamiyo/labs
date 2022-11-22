@@ -2,6 +2,7 @@
   (:require [reagent.core :as r]
             [re-frame.core :refer [dispatch subscribe]]
             [stylefy.core :as stylefy :refer [use-style]]
+            [fork.re-frame :as fork]
             [app.mui :as mui]
             [app.polyrhythms.buttons :refer [play-button pause-button]]
             [app.polyrhythms.sound :refer [play]]
@@ -54,21 +55,22 @@
          (.stroke context))))))
 
 (defn on-touch-move [e]
-  (let [touch (.. e -touches (item 0) -clientX)
-        diff (- touch @touch-init)]
-    (reset! slider-angle (mod (/ diff 20) 1))
-    (dispatch [:change-tempo (+ @tempo-on-touch (js/Math.round (/ diff 20)))])))
+  (if (undefined? (.. e -touches))
+    nil
+    (let [touch (.. e -touches (item 0) -clientX)
+          diff (- touch @touch-init)]
+      (reset! slider-angle (mod (/ diff 20) 1))
+      (dispatch [:change-tempo (+ @tempo-on-touch (/ (js/Math.round (* (/ diff 20) 10)) 10))]))))
 
 (def canvas-style
   {:margin "0 2rem"})
 
-(defn slider-canvas []
+(defn slider-canvas [angle]
   (r/create-class
    {:component-did-mount #(update-canvas)
     :component-did-update #(update-canvas)
     :display-name "slider-canvas"
-    :reagent-render (fn []
-                      @slider-angle
+    :reagent-render (fn [angle]
                       [:canvas
                        (use-style
                         canvas-style
@@ -79,37 +81,141 @@
                                            (let [touch (.. e -touches (item 0) -clientX)]
                                              (reset! touch-init touch)
                                              (reset! tempo-on-touch @(subscribe [:tempo]))))
-                         :on-touch-move on-touch-move})])}))
+                         :on-touch-move on-touch-move
+                         :on-mouse-move on-touch-move})])}))
+
+(def no-spinner {:appearance "none"
+                 :margin 0
+                 :display "none"})
+
+(def spinner-selector [["& input::-webkit-outer-spin-button, & input::-webkit-inner-spin-button" no-spinner]
+                       ["input[type=number]" {:appearance "textfield"}]])
 
 (defn- tempo-field-style [is-mobile?]
   {:padding (if is-mobile? "0" "2rem 0")
-   ::stylefy/manual (mui-override-style false (if is-mobile? "2.2rem" "4rem"))})
+   ::stylefy/manual (merge
+                     (mui-override-style false "4rem")
+                     spinner-selector)})
+
+(defn- num-den-field-style [is-mobile?]
+  {:padding (if is-mobile? "0" "2rem 0")
+   ::stylefy/manual (merge
+                     (mui-override-style false "4rem")
+                     spinner-selector)})
 
 (def tempo-input-style
   {:margin "0 1rem"})
 
-(defn tempo-control [is-mobile?]
-  (fn [is-mobile?]
-    [:div
-     (use-style (tempo-field-style is-mobile?))
-     [mui/text-field
-      (use-style
-       tempo-input-style
-       {:key       "tempo"
-        :type      "number"
-        :variant   "outlined"
-        :margin    "dense"
-        :label     "tempo"
-        :name      "tempo"
-        :disabled  is-mobile?
-        :value     (str @(subscribe [:tempo]))
-        :onWheel  #(let [del    (.-deltaY %)
-                         tempo @(subscribe [:tempo])]
-                     (cond
-                       (pos? del) (dispatch [:change-tempo (dec tempo)])
-                       (neg? del) (dispatch [:change-tempo (inc tempo)])))
-        :onChange #(dispatch [:change-tempo (.. % -target -value)])
-        :onBlur   #(dispatch [:change-tempo (.. % -target -value)])})]]))
+(defn tempo-control [is-mobile? tempo]
+  (let [value (r/atom tempo)
+        input (subscribe [:input-value])]
+    (fn [is-mobile?]
+      (let [changeFn #(do
+                        (reset! value (.toFixed % 1))
+                        (dispatch [:change-tempo %]))
+            inputFn #(do
+                       (reset! value %)
+                       (dispatch [:update-input [%]]))]
+        (reset! value @input)
+        [:div
+         (use-style (tempo-field-style is-mobile?))
+         [mui/text-field
+          (use-style
+           tempo-input-style
+           {:key       "tempo"
+            :type      "number"
+            :variant   "outlined"
+            :margin    "dense"
+            :label     "group-bpm"
+            :name      "tempo"
+            :value     @value
+            :on-wheel  #(let [del (.-deltaY %)
+                              v   (js/parseFloat @value)]
+                          (cond
+                            (pos? del) (let [tempo (- v 0.1)]
+                                         (changeFn tempo))
+                            (neg? del) (let [tempo (+ v 0.1)]
+                                         (changeFn tempo)))
+                          (.preventDefault %))
+            :on-change #(inputFn (.. % -target -value))
+            :on-blur   #(let [tempo (js/parseFloat @value)]
+                          (changeFn tempo))
+            :on-submit #(let [tempo (js/parseFloat @value)]
+                          (changeFn tempo))})]]))))
+
+(defn num-tempo [is-mobile? default]
+  (let [value (r/atom default)
+        input (subscribe [:input-value :numerator])]
+    (fn [is-mobile?]
+      (let [changeFn #(do
+                        (reset! value (.toFixed % 1))
+                        (dispatch [:change-related-tempo [% :numerator]]))
+            inputFn #(do
+                       (reset! value %)
+                       (dispatch [:update-input [% :numerator]]))]
+        (reset! value @input)
+        [:div
+         (use-style (num-den-field-style is-mobile?))
+         [mui/text-field
+          (use-style
+           tempo-input-style
+           {:key       "num-tempo"
+            :type      "number"
+            :variant   "outlined"
+            :margin    "dense"
+            :label     "num-bpm"
+            :name      "numerator-tempo"
+            :value     @value
+            :on-wheel  #(let [del (.-deltaY %)
+                              v   (js/parseFloat @value)]
+                          (cond
+                            (pos? del) (let [tempo (- v 0.1)]
+                                         (changeFn tempo))
+                            (neg? del) (let [tempo (+ v 0.1)]
+                                         (changeFn tempo)))
+                          (.preventDefault %))
+            :on-change #(inputFn (.. % -target -value))
+            :on-blur   #(let [tempo (js/parseFloat @value)]
+                          (changeFn tempo))
+            :on-submit #(let [tempo (js/parseFloat @value)]
+                          (changeFn tempo))})]]))))
+
+(defn den-tempo [is-mobile? default]
+  (let [value (r/atom default)
+        input (subscribe [:input-value :denominator])]
+    (fn [is-mobile?]
+      (let [changeFn #(do
+                        (reset! value (.toFixed % 1))
+                        (dispatch [:change-related-tempo [% :denominator]]))
+            inputFn #(do
+                       (reset! value %)
+                       (dispatch [:update-input [% :denominator]]))]
+        (reset! value @input)
+        [:div
+         (use-style (num-den-field-style is-mobile?))
+         [mui/text-field
+          (use-style
+           tempo-input-style
+           {:key       "den-tempo"
+            :type      "number"
+            :variant   "outlined"
+            :margin    "dense"
+            :label     "den-bpm"
+            :name      "denominator-tempo"
+            :value     @value
+            :on-wheel  #(let [del (.-deltaY %)
+                              v   (js/parseFloat @value)]
+                          (cond
+                            (pos? del) (let [tempo (- v 0.1)]
+                                         (changeFn tempo))
+                            (neg? del) (let [tempo (+ v 0.1)]
+                                         (changeFn tempo)))
+                          (.preventDefault %))
+            :on-change #(inputFn (.. % -target -value))
+            :on-blur   #(let [tempo (js/parseFloat @value)]
+                          (changeFn tempo))
+            :on-submit #(let [tempo (js/parseFloat @value)]
+                          (changeFn tempo))})]]))))
 
 (defn tempo-play-style [is-mobile?]
   {:text-align "center"
@@ -128,16 +234,29 @@
 (defn tempo-play-group []
   (let [is-mobile?    @(subscribe [:is-mobile?])
         is-playing?   @(subscribe [:is-playing?])
+        tempo         @(subscribe [:input-value])
+        den           @(subscribe [:input-value :denominator])
+        num           @(subscribe [:input-value :numerator])
         button-height (if is-mobile? 60 120)
         button-width  (if is-mobile? 95 120)]
     [:div
-     (use-style (tempo-play-style is-mobile?))
-     [tempo-control is-mobile?]
-     (when is-mobile? [slider-canvas])
-     (if is-playing?
-       [pause-button {:on-click handle-play-click
-                      :width button-width
-                      :height button-height}]
-       [play-button  {:on-click handle-play-click
-                      :width button-width
-                      :height button-height}])]))
+     (use-style nil)
+     [:div
+      (use-style (tempo-play-style is-mobile?))
+      [den-tempo is-mobile? den]
+      [tempo-control is-mobile? tempo]
+      [num-tempo is-mobile? num]]
+     (when is-mobile? [:div
+                       (use-style {:text-align "center"
+                                   :margin "1rem auto"})
+                       [slider-canvas 
+                        @slider-angle]]) 
+     [:div
+      (use-style {:text-align "center"})
+      (if is-playing?
+        [pause-button {:on-click handle-play-click
+                       :width button-width
+                       :height button-height}]
+        [play-button  {:on-click handle-play-click
+                       :width button-width
+                       :height button-height}])]]))
