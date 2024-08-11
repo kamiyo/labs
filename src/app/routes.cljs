@@ -5,25 +5,12 @@
 
 (def routes
   [["/" :main]
+   ["/metronome" :metronome]
    ["/polyrhythms" :polyrhythms]
    ["/github" :github]])
-
-;; (defn init-router! []
-;;   (accountant/configure-navigation!
-;;    {:nav-handler (fn [path]
-;;                    (secretary/dispatch! path))
-;;     :path-exists? (fn [path]
-;;                     (secretary/locate-route path))}))
-
-;; (defn init-app-routes []
-;;   (defroute "/" []
-;;     (dispatch [:change-route :polyrhythms]))
-;;   (defroute "/polyrhythms" []
-;;     (dispatch [:change-route :polyrhythms]))
-;;   (init-router!))
 
 (defn init-app-routes! []
   (rfe/start!
    (rf/router routes)
-   (fn [match] (dispatch [:change-route (-> match :data :name)]))
+   (fn [match] (dispatch [:router/change-route (-> match :data :name)]))
    {:use-fragment false}))

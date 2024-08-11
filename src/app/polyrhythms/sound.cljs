@@ -1,6 +1,5 @@
 (ns app.polyrhythms.sound
   (:require [cljs-bach.synthesis :as a]
-            [reagent.core :as r]
             [re-frame.core
              :refer [dispatch
                      dispatch-sync
@@ -8,7 +7,7 @@
             [app.polyrhythms.common
              :refer [worker
                      get-seconds-per-beat
-                     context
+                     audio-context
                      analyser-denominator
                      analyser-numerator]]
             [app.polyrhythms.animation :refer [raf-id animate stop-animation]]))
@@ -29,29 +28,35 @@
   []
   (a/subgraph analyser-denominator))
 
-(defn blip [freq]
-  (a/connect->
-   (a/sine freq)
-   audio-filter))
+;; (defn blip [freq]
+;;   (a/connect->
+;;    (a/sine freq)
+;;    audio-filter))
 
-(defn listen
-  [query-v]
-  @(subscribe query-v))
+(def blip-numerator (a/connect->
+                     (a/sine (:numerator beat-frequencies))
+                     audio-filter
+                     analyser-numerator-subgraph
+                     a/destination))
+
+(def blip-denominator (a/connect->
+                       (a/sine (:denominator beat-frequencies))
+                       audio-filter
+                       analyser-denominator-subgraph
+                       a/destination))
 
 (defn play-once [time which]
-  (let [analyser (condp = which
-                   :numerator analyser-numerator-subgraph
-                   :denominator analyser-denominator-subgraph)]
-    (-> (blip (which beat-frequencies))
-        (a/connect-> analyser a/destination)
-        (a/run-with context time 0.1))))
+  (let [synth (condp = which
+                :numerator blip-numerator
+                :denominator blip-denominator)]
+    (a/run-with synth audio-context time 0.1)))
 
 (defn next-note [which]
-  (let [tempo (listen [:tempo])
-        divisions (listen [(keyword (str (name which) "-divisions"))])
+  (let [tempo @(subscribe [:poly/tempo])
+        divisions @(subscribe [(keyword (str "poly/" (name which) "-divisions"))])
         seconds-per-beat (get-seconds-per-beat tempo divisions)
-        next-note-time (listen [(keyword (str (name which) "-next-note-time"))])]
-    (dispatch-sync [:change-next-note-time
+        next-note-time @(subscribe [(keyword (str "poly/" (name which) "-next-note-time"))])]
+    (dispatch-sync [:poly/change-next-note-time
                     {:next-note-time (+ next-note-time seconds-per-beat)
                      :which which}])))
 
@@ -61,44 +66,45 @@
 (defn scheduler-loop
   [which seconds-per last-beat-time limit]
   (let [which-microbeat (condp = which
-                          :numerator :numerator-microbeat
-                          :denominator :denominator-microbeat)
+                          :numerator :poly/numerator-microbeat
+                          :denominator :poly/denominator-microbeat)
         get-next-note-time (fn []
-                             (-> (listen [which-microbeat])
+                             (-> @(subscribe [which-microbeat])
                                  (* seconds-per)
                                  (+ last-beat-time)))]
     (while (< (get-next-note-time) limit)
       (schedule-note (get-next-note-time) which)
-      (dispatch-sync [:inc-microbeat which]))))
+      (dispatch-sync [:poly/inc-microbeat which]))))
 
 (defn scheduler []
-  (let [tempo (listen [:tempo])
-        last-beat-time (listen [:last-beat-time])
-        numerator (listen [:numerator-divisions])
-        denominator (listen [:denominator-divisions])
+  (let [tempo @(subscribe [:poly/tempo])
+        last-beat-time @(subscribe [:poly/last-beat-time])
+        numerator @(subscribe [:poly/numerator-divisions])
+        denominator @(subscribe [:poly/denominator-divisions])
         seconds-per-numerator (get-seconds-per-beat tempo numerator)
         seconds-per-denominator (get-seconds-per-beat tempo denominator)
-        limit (+ schedule-ahead-time (a/current-time context))]
+        limit (+ schedule-ahead-time (a/current-time audio-context))]
     (scheduler-loop :numerator seconds-per-numerator last-beat-time limit)
     (scheduler-loop :denominator seconds-per-denominator last-beat-time limit)
     (if (and
-         (> (listen [:numerator-microbeat]) numerator)
-         (> (listen [:denominator-microbeat]) denominator))
-      (dispatch-sync [:normalize-microbeats]))))
+         (> @(subscribe [:poly/numerator-microbeat]) numerator)
+         (> @(subscribe [:poly/denominator-microbeat]) denominator))
+      (dispatch-sync [:poly/normalize-microbeats])
+      nil)))
 
 (defn play
   []
-  (let [is-playing? (listen [:is-playing?])]
-    (if (not is-playing?)
+  (let [playing? @(subscribe [:poly/playing?])]
+    (if (not playing?)
       (do
-        (dispatch [:toggle-playing])
+        (dispatch [:poly/toggle-playing])
         (reset! raf-id (js/window.requestAnimationFrame animate))
         (.postMessage ^js @worker "start")
-        (dispatch-sync [:change-last-beat-time (+ 0.06 (a/current-time context))])
-        (dispatch-sync [:reset-microbeats]))
+        (dispatch-sync [:poly/change-last-beat-time (+ 0.06 (a/current-time audio-context))])
+        (dispatch-sync [:poly/reset-microbeats]))
       (do
-        (dispatch [:toggle-playing])
-        (dispatch-sync [:change-last-beat-time (a/current-time context)])
-        (dispatch-sync [:reset-microbeats])
+        (dispatch [:poly/toggle-playing])
+        (dispatch-sync [:poly/change-last-beat-time (a/current-time audio-context)])
+        (dispatch-sync [:poly/reset-microbeats])
         (stop-animation)
         (.postMessage ^js @worker "stop")))))

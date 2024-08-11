@@ -1,12 +1,8 @@
 (ns app.polyrhythms.buttons
-  (:require [reagent.core :as r]
-            [stylefy.core :as stylefy :refer [use-style]]
-            [app.styles :refer [dark-blue light-blue]]
-            [clojure.string :refer [join]]))
-
-(defn map-fn
-  [func]
-  #(map func %))
+  (:require
+   [stylefy.core :as stylefy :refer [use-style]]
+   [app.styles :refer [dark-blue light-blue]]
+   [clojure.string :as str]))
 
 (def button-style
   {:transition "all 0.2s"
@@ -41,9 +37,9 @@
                            [angle]
                            (map #(->> % Math/sin (* 50)) angle)))
                         angles)]
-            (clojure.string/join
+            (str/join
              "L"
-             (apply map #(clojure.string/join " " [%1 %2]) xy))))
+             (apply map #(str/join " " [%1 %2]) xy))))
          "Z")
         :fill "#000000"
         :on-click on-click})]]))

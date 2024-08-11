@@ -1,17 +1,17 @@
 (ns app.polyrhythms.common
   (:require [cljs-bach.synthesis :as a]))
 
-(defonce worker (atom (js/Worker. "./js/worker.js")))
+(def worker (atom (js/Worker. "./js/worker.js")))
 
 (defn get-seconds-per-beat
   ([tempo] (/ 60.0 tempo))
   ([tempo divisions] (/ 60.0 tempo divisions)))
 
-(defonce context (a/audio-context))
-(defonce analyser-numerator (.createAnalyser ^js context))
-(defonce analyser-denominator (.createAnalyser ^js context))
-(defonce buffer-numerator (js/Uint8Array. 256))
-(defonce buffer-denominator (js/Uint8Array. 256))
+(def audio-context (a/audio-context))
+(def analyser-numerator (.createAnalyser ^js audio-context))
+(def analyser-denominator (.createAnalyser ^js audio-context))
+(def buffer-numerator (js/Uint8Array. 256))
+(def buffer-denominator (js/Uint8Array. 256))
 
 (defn init-audio
   []
@@ -20,7 +20,7 @@
 
 (defn get-context-current-time
   []
-  (a/current-time context))
+  (a/current-time audio-context))
 
 (defn populate-analyser
   [which]
@@ -31,8 +31,6 @@
                  :numerator buffer-numerator
                  :denominator buffer-denominator)]
     (.getByteTimeDomainData analyser buffer)))
-
-(defonce grid-x (atom {:start nil :width nil}))
 
 (defn gcd
   [a b]

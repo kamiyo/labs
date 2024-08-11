@@ -1,5 +1,4 @@
-(ns app.svgs.gear
-  (:require [reagent.core :as r]))
+(ns app.svgs.gear)
 
 (defn gear-svg [props]
   [:svg (merge props

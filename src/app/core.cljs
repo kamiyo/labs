@@ -1,19 +1,17 @@
 (ns app.core
-  (:require [re-frame.core :refer [dispatch-sync dispatch]]
-            [reagent.core :as r]
-            [reagent.dom :as rdom]
-            [app.polyrhythms.common :refer [worker init-audio]]
-            [app.subs]
-            [app.routes :refer [init-app-routes!]]
-            [app.styles]
-            [app.nav]
+  (:require ["mobile-detect" :as mobile-detect]
             [app.events]
-            [app.views :refer [app]]
-            [app.polyrhythms.sound :refer [lookahead scheduler]]
             [app.polyrhythms.animation]
+            [app.polyrhythms.common :refer [init-audio worker]]
+            [app.polyrhythms.sound :refer [lookahead scheduler]]
+            [app.routes :refer [init-app-routes!]]
+            [app.styles :refer [colors]]
+            [app.subs]
+            [app.views :refer [app]]
+            [re-frame.core :refer [dispatch dispatch-sync]]
+            [reagent.dom :as rdom]
             [stylefy.core :as stylefy]
-            [stylefy.reagent :as stylefy-reagent]
-            ["mobile-detect" :as mobile-detect]))
+            [stylefy.reagent :as stylefy-reagent]))
 
 (defn listen-worker
   [^js e]
@@ -26,11 +24,11 @@
         innerWidth (.-innerWidth js/window)
         innerHeight (.-innerHeight js/window)
         ratio (/ innerWidth innerHeight)]
-    (dispatch [:update-layout
-               {:is-mobile? mobile?
+    (dispatch [:layout/update
+               {:mobile? mobile?
                 :width innerWidth
                 :height innerHeight
-                :is-portrait? (<= ratio 1)}])))
+                :portrait? (<= ratio 1)}])))
 
 (defn start []
   (init-audio)
@@ -47,7 +45,9 @@
   {::stylefy/vendors      ["webkit" "moz" "o"]
    ::stylefy/auto-prefix #{:border-radius}}})
 
-(dispatch-sync [:initialise-db])
+(stylefy/tag "html" {:background-color (:-3 colors)})
+
+(dispatch-sync [:main/initialise-db])
 
 (defn stop []
   (.postMessage @worker "stop")
