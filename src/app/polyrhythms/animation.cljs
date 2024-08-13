@@ -59,17 +59,19 @@
   []
   (reset! raf-id (js/window.requestAnimationFrame animate))
   (let [{:keys [start width]} @(subscribe [:poly/grid-x])
+        tempo             (.valueOf @(subscribe [:poly/tempo]))
         last-beat-time    @(subscribe [:poly/last-beat-time])
-        seconds-per-beat  (get-seconds-per-beat (.valueOf @(subscribe [:poly/tempo])))
+        seconds-per-beat  (get-seconds-per-beat tempo)
         time-since-last-beat (- (get-context-current-time) last-beat-time)
         progress          (/ time-since-last-beat seconds-per-beat)
-        progress-adjusted (max 0 progress)
+        progress-adjusted (mod (+ 1 progress) 1)
         cursor            (js/document.getElementById "cursor")
         cursor-bounding   (.getBoundingClientRect cursor)
         cursor-left       (.-left cursor-bounding)
         cursor-width      (.-width cursor-bounding)
         cursor-midpoint   (+ cursor-left (/ cursor-width 2))
         new-x             (+ start (* progress-adjusted width))]
+    (js/console.log progress)
     (set! (.. cursor -style -left) (str new-x "px"))
     (doseq [el   (array-seq (js/document.getElementsByClassName "number"))
             :let [el-bounding         (.getBoundingClientRect el)
@@ -90,8 +92,8 @@
                                          ", "
                                          (take 10
                                                (repeat "0 0 3px rgba(255,51,51,0.2)"))))]]
-      (if (or (and (> midpoint-difference -20)
-                   (< midpoint-difference 50))
+      (if (or (and (> midpoint-difference (/ tempo -3))
+                   (< midpoint-difference (/ tempo 2)))
               (> midpoint-difference max-thresh))
         (set-el-highlight el color)
         (unset-el-highlight el)))

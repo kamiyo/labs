@@ -1,17 +1,17 @@
 (ns app.polyrhythms.buttons
-  (:require
-   [stylefy.core :as stylefy :refer [use-style]]
-   [app.styles :refer [dark-blue light-blue]]
-   [clojure.string :as str]))
+  (:require [app.styles :refer [colors light-blue]]
+            [clojure.string :as str]
+            [garden.color :as color]
+            [stylefy.core :as stylefy :refer [use-style]]))
 
 (def button-style
   {:transition "all 0.2s"
-   :fill dark-blue
+   :fill (:0 colors)
    ::stylefy/mode
    {:hover
     {:cursor "pointer"
      :transform "scale(1.05)"
-     :fill light-blue}}})
+     :fill (color/lighten (:0 colors) 10)}}})
 
 (defn play-button
   [props]

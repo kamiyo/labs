@@ -5,22 +5,18 @@
             [app.polyrhythms.settings :refer [settings-container]]
             [app.polyrhythms.styles :refer [mui-override-style]]
             [app.polyrhythms.subs]
-            [app.polyrhythms.tempo :refer [tempo-play-group]]
+            [app.polyrhythms.tempo :refer [spinner-selector tempo-play-group]]
             [app.polyrhythms.visualizer :refer [visualizer-grid]]
             [app.styles :refer [colors]]
-            [garden.units :refer [percent px]]
-            [re-frame.core :refer [dispatch subscribe]]
+            [garden.units :refer [px]]
+            [re-frame.core :refer [dispatch dispatch-sync subscribe]]
             [stylefy.core :as stylefy :refer [use-style]]))
-
-(def selector-style
-  {:flex "0 1 auto"})
 
 (defn- input-style
   [mobile?]
-  {:margin "0 1rem"
-   :width  "6rem"
+  {:width "6rem"
    :scrollbar-width "thin"
-   ::stylefy/manual (mui-override-style mobile?)})
+   ::stylefy/manual (mui-override-style false)})
 
 (defn- desktop-number-input
   [type value]
@@ -32,7 +28,10 @@
      :label    (str (name type) ":")
      :name     (name type)
      :value    value
+     :variant  "outlined"
+     :margin   "dense"
      :min      1
+     :on-wheel #(-> % .-target .focus)
      :onChange #(dispatch [:poly/change-divisions {:divisions (.. % -target -value)
                                                    :which     type}])})])
 
@@ -62,11 +61,9 @@
 
 (defn selector
   [type value mobile?]
-  [:div
-   (use-style selector-style)
-   (if mobile?
-     (mobile-number-select type value)
-     (desktop-number-input type value))])
+  (if mobile?
+    (mobile-number-select type value)
+    (desktop-number-input type value)))
 
 (defn- control-group-style
   [mobile?]
@@ -77,9 +74,7 @@
 
 (defn- lcm-display-style
   [mobile?]
-  {:margin-top      "0"
-   :margin-bottom   "0"
-   ::stylefy/manual (mui-override-style mobile?)})
+  {::stylefy/manual (merge (mui-override-style false) spinner-selector)})
 
 (defn lcm-display
   [total-divisions mobile?]
@@ -98,9 +93,9 @@
   [numerator denominator total-divisions mobile?]
   [:div
    (use-style (control-group-style mobile?))
-   (selector :numerator numerator mobile?)
+   (selector :denominator denominator mobile?)
    (lcm-display total-divisions mobile?)
-   (selector :denominator denominator mobile?)])
+   (selector :numerator numerator mobile?)])
 
 (defn- cursor-style
   [playing?]
@@ -140,7 +135,8 @@
 (defn- container-style
   [mobile?]
   (let []
-    {:margin           "1rem"
+    {:max-width        "1200px"
+     :margin           "1rem auto"
      :background-color (:-2 colors)
      :box-shadow       "0 0 6px rgba(0 0 0 / 0.5)"
      :border-radius    "5px"
@@ -150,7 +146,8 @@
      :display          "flex"
      :min-height       "0"
      :flex-direction   "column"
-     :position         "relative"}))
+     :position         "relative"
+     :padding          "1rem"}))
 
 (defn- metronome-group-style
   [mobile?]
@@ -169,6 +166,7 @@
 
 (defn polyrhythm-container
   []
+  (when (not @(subscribe [:poly/storage-init?])) (dispatch-sync [:poly/fetch-local-storage]))
   (let [numerator       @(subscribe [:poly/numerator-divisions])
         denominator     @(subscribe [:poly/denominator-divisions])
         total-divisions @(subscribe [:poly/lcm])
@@ -184,7 +182,7 @@
      [settings-container]
      [:div
       (use-style (metronome-group-style mobile?))
-      [cursor playing?]
       [control-group numerator denominator total-divisions mobile?]
       [visualizer-grid]
-      [tempo-play-group]]]))
+      [tempo-play-group]
+      [cursor playing?]]]))

@@ -1,17 +1,16 @@
 (ns app.polyrhythms.tempo
-  (:require ["@mui/material/TextField$default" :as Text-Field]
-            ["@mui/material/Radio$default" :as Radio]
-            ["@mui/material/FormControl$default" :as Form-Control]
-            ["@mui/material/FormControlLabel$default" :as Form-Control-Label]
+  (:require ["@mui/material/Radio$default" :as Radio]
+            ["@mui/material/TextField$default" :as Text-Field]
+            ["react" :as react]
             [app.polyrhythms.buttons :refer [pause-button play-button]]
             [app.polyrhythms.common
              :refer
              [audio-context]]
             [app.polyrhythms.sound :refer [play]]
-            [app.polyrhythms.styles :refer [mui-override-style]]
+            [app.polyrhythms.styles :refer [mui-override-style mui-radio-style]]
+            [app.styles :refer [colors]]
+            [garden.color :as color]
             [re-frame.core :refer [dispatch subscribe]]
-            ["fraction.js" :as Fraction]
-            ["react" :as react]
             [stylefy.core :as stylefy :refer [use-style]]))
 
 (def slider-height 50)
@@ -111,12 +110,12 @@
            (if mouse-down?
              (let [touch?        (some? (.. e -touches))
                    touch         (if touch? (.. e -touches (item 0) -clientX) (* 1 (.. e -clientX)))
-                   diff          (- touch touch-init)
+                   diff          (- touch-init touch)
                    dispatch-name (case control-select
                                    :main        :poly/set-tempo
                                    :numerator   :poly/set-numerator-tempo
                                    :denominator :poly/set-denominator-tempo)]
-               (set-slider-angle (mod (/ diff 20) 1))
+               (set-slider-angle (mod (/ diff -20) 1))
                (dispatch [dispatch-name
                           (.add tempo-on-touch (js/Math.round (/ diff 20)))]))
              nil))
@@ -151,29 +150,26 @@
    ["input[type=number]" {:appearance "textfield"}]])
 
 (defn- tempo-field-style
-  [mobile?]
+  [mobile? control?]
   {:padding         (if mobile? "0" "2rem 0 1rem")
-   ::stylefy/manual (merge (mui-override-style false "4rem") spinner-selector)})
-
-(defn- num-den-field-style
-  [mobile?]
-  {:padding         (if mobile? "0" "2rem 0 1rem")
-   ::stylefy/manual (merge (mui-override-style false "4rem") spinner-selector)})
+   ::stylefy/manual (merge (mui-override-style control? "4rem") spinner-selector)})
 
 (def tempo-input-style {:margin "0 1rem"})
 
 
 (defn tempo-control
-  [mobile?]
+  [mobile? control-select]
   (let [input    @(subscribe [:poly/input-value])
+        control? (= :main control-select)
         changeFn #(dispatch [:poly/set-tempo %])
         inputFn  #(dispatch [:poly/update-input [%]])
         wheelFn  (fn [ev]
+                   (-> ev .-target .focus)
                    (let [in-delta  (.-deltaY ev)
                          out-delta (if (pos? in-delta) -1 1)]
                      (dispatch [:poly/update-tempo out-delta])))]
     [:div
-     (use-style (tempo-field-style mobile?))
+     (use-style (tempo-field-style mobile? control?))
      [:>
       Text-Field
       (use-style tempo-input-style
@@ -183,6 +179,7 @@
                   :label       "group-bpm"
                   :name        "tempo"
                   :value       input
+                  :on-focus    #(dispatch [:poly/set-control-select :main])
                   :on-wheel    wheelFn
                   :on-change   #(inputFn (.. % -target -value))
                   :on-blur     #(changeFn input)
@@ -192,16 +189,18 @@
                                   nil)})]]))
 
 (defn num-tempo
-  [mobile?]
+  [mobile? control-select]
   (let [input    @(subscribe [:poly/input-value :numerator])
+        control? (= :numerator control-select)
         changeFn #(dispatch [:poly/set-numerator-tempo %])
         inputFn  #(dispatch [:poly/update-input [% :numerator]])
         wheelFn  (fn [ev]
+                   (-> ev .-target .focus)
                    (let [in-delta  (.-deltaY ev)
                          out-delta (if (pos? in-delta) -1 1)]
                      (dispatch [:poly/update-numerator-tempo out-delta])))]
     [:div
-     (use-style (num-den-field-style mobile?))
+     (use-style (tempo-field-style mobile? control?))
      [:>
       Text-Field
       (use-style tempo-input-style
@@ -211,6 +210,7 @@
                   :label       "num-bpm"
                   :name        "numerator-tempo"
                   :value       input
+                  :on-focus    #(dispatch [:poly/set-control-select :numerator])
                   :on-wheel    wheelFn
                   :on-change   #(inputFn (.. % -target -value))
                   :on-blur     #(changeFn input)
@@ -220,16 +220,18 @@
                                   nil)})]]))
 
 (defn den-tempo
-  [mobile?]
+  [mobile? control-select]
   (let [input    @(subscribe [:poly/input-value :denominator])
+        control? (= :denominator control-select)
         changeFn #(dispatch [:poly/set-denominator-tempo %])
         inputFn  #(dispatch [:poly/update-input [% :denominator]])
         wheelFn  (fn [ev]
+                   (-> ev .-target .focus)
                    (let [in-delta  (.-deltaY ev)
                          out-delta (if (pos? in-delta) -1 1)]
                      (dispatch [:poly/update-denominator-tempo out-delta])))]
     [:div
-     (use-style (num-den-field-style mobile?))
+     (use-style (tempo-field-style mobile? control?))
      [:>
       Text-Field
       (use-style tempo-input-style
@@ -239,6 +241,7 @@
                   :label       "den-bpm"
                   :name        "denominator-tempo"
                   :value       input
+                  :on-focus    #(dispatch [:poly/set-control-select :denominator])
                   :on-wheel    wheelFn
                   :on-change   #(inputFn (.. % -target -value))
                   :on-blur     #(changeFn input)
@@ -250,10 +253,15 @@
 (def tempo-play-style
   {:text-align      "center"
    :display         "flex"
-   :flex-direction  "row-reverse"
+   :flex-direction  "row"
    :flex            "0 0 auto"
    :justify-content "space-around"
+   :gap             "1rem"
    :align-items     "center"})
+
+(def radio-style {:position "relative"
+                  :color (color/as-hex (:1 colors))
+                  ::stylefy/manual (mui-radio-style)})
 
 (defn radio-group
   [control-select]
@@ -262,21 +270,25 @@
                       (dispatch [:poly/set-control-select val])))]
     [:div
      (use-style tempo-play-style)
+
      [:>
       Radio
-      {:checked   (= control-select :numerator)
-       :value     "numerator"
-       :on-change on-change}]
+      (use-style radio-style
+                 {:checked   (= control-select :denominator)
+                  :value     "denominator"
+                  :on-change on-change})]
      [:>
       Radio
-      {:checked   (= control-select :main)
-       :value     "main"
-       :on-change on-change}]
+      (use-style radio-style
+                 {:checked   (= control-select :main)
+                  :value     "main"
+                  :on-change on-change})]
      [:>
       Radio
-      {:checked   (= control-select :denominator)
-       :value     "denominator"
-       :on-change on-change}]]))
+      (use-style radio-style
+                 {:checked   (= control-select :numerator)
+                  :value     "numerator"
+                  :on-change on-change})]]))
 
 
 (defn handle-play-click
@@ -305,9 +317,9 @@
      (use-style nil)
      [:div
       (use-style tempo-play-style)
-      [den-tempo mobile?]
-      [tempo-control mobile?]
-      [num-tempo mobile?]]
+      [den-tempo mobile? control-select]
+      [tempo-control mobile? control-select]
+      [num-tempo mobile? control-select]]
      [radio-group control-select]
      [:div
       (use-style {:text-align "center" :margin "1rem auto"}

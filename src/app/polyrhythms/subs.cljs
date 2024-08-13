@@ -70,3 +70,8 @@
  :poly/control-select
  (fn [db _]
    (get-in-polyrhythms db [:control-select])))
+
+(reg-sub
+ :poly/storage-init?
+ (fn [db _]
+   (get-in-polyrhythms db [:init?])))

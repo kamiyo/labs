@@ -4,8 +4,9 @@
             ["@mui/material/Menu$default" :as Menu]
             ["@mui/material/MenuItem$default" :as Menu-Item]
             ["@mui/material/Switch$default" :as Switch]
-            [app.styles :refer [colors light-blue light-blue-transparent]]
+            [app.styles :refer [colors]]
             [app.svgs.gear :refer [gear-svg]]
+            [garden.color :as color]
             [re-frame.core :refer [dispatch subscribe]]
             [reagent.core :as r]
             [stylefy.core :as stylefy :refer [use-style]]))
@@ -29,11 +30,22 @@
    ::stylefy/mode {:hover {:cursor "pointer"}}})
 
 (def mui-switch-override-style
-  {::stylefy/manual [[:.MuiSwitch-colorSecondary.Mui-checked
-                      [[:& {:color light-blue}]
-                       [:&:hover {:background-color light-blue-transparent}]]]
-                     [".MuiSwitch-colorSecondary.Mui-checked + .MuiSwitch-track"
-                      {:background-color light-blue}]]})
+  {::stylefy/manual [[:.MuiSwitch-colorPrimary
+                      [[:& {:color      "rgba(255 255 255 / 0.1)"
+                            :transition "all 0.25s"}]
+                       [:&:hover {:background-color (color/transparentize (:1 colors) 0.8)}]]
+                     ]
+                     [:.MuiSwitch-colorPrimary.Mui-checked
+                      [[:& {:color      (:1 colors)
+                            :transition "all 0.25s"}]
+                       [:&:hover {:background-color (color/transparentize (:0 colors) 0.5)}]]]
+                     [".MuiSwitch-colorPrimary.Mui-checked + .MuiSwitch-track"
+                      {:background-color (:1 colors)}]]})
+
+(def settings-style
+  {::stylefy/manual [[:.MuiMenu-paper
+                      [:& {:background-color (color/transparentize (:-3 colors) 0.05)
+                           :color (:1 colors)}]]]})
 
 (defn verbose-toggler
   []
@@ -67,10 +79,11 @@
           (use-style (get-gear-style is-open?) {:on-click handle-open})]
          [:>
           Menu
-          {:open             is-open?
-           :anchor-el        @anchor-el
-           :keep-mounted     true
-           :anchor-origin    #js {:vertical "bottom" :horizontal "right"}
-           :transform-origin #js {:vertical "top" :horizontal "right"}
-           :on-close         handle-close}
+          (use-style settings-style
+                     {:open             is-open?
+                      :anchor-el        @anchor-el
+                      :keep-mounted     true
+                      :anchor-origin    #js {:vertical "bottom" :horizontal "right"}
+                      :transform-origin #js {:vertical "top" :horizontal "right"}
+                      :on-close         handle-close})
           (verbose-toggler)]]))))

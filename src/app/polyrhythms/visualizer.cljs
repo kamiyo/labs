@@ -31,7 +31,7 @@
                           {:id (str (dec y) x)})]))]))
 
 (defn- get-minor-tick-style
-  [idx _verbose? mobile?]
+  [idx verbose? mobile?]
   {:grid-column      (+ idx 2)
    :grid-row         "3"
    :color            "#777777"
@@ -42,12 +42,13 @@
    :align-items      "center"
    :justify-content  "center"
    ;;  :text-shadow     (str/join ", " (take 30 (repeat "0 0 4px #ffffff")))
-   :background-color (:1 colors)
+   :background-color (:-3 colors)
    :border-radius    "4px"
    :font-size        (if mobile? "0.8rem" "1.0rem")
    :line-height      (if mobile? "1.2rem" "1.8rem")
    :font-weight      "normal"
-   :height           "0"
+   :height           (if verbose? "fit-content" "1.5rem")
+   :width            "1.5rem"
    :overflow         "visible"
    :text-align       "center"})
 

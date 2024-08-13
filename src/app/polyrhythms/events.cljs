@@ -1,36 +1,78 @@
 (ns app.polyrhythms.events
-  (:require
-    [app.events :refer [check-spec-interceptor standard-interceptors]]
-    [app.polyrhythms.common
-     :refer
-     [get-context-current-time
-      get-seconds-per-beat
-      lcm]]
-    [re-frame.core :refer [reg-event-db reg-event-fx]]
-    ["fraction.js" :as Fraction]))
+  (:require ["fraction.js" :as Fraction]
+            [app.common :refer [storage-available?]]
+            [app.events :refer [check-spec-interceptor standard-interceptors]]
+            [app.polyrhythms.common
+             :refer
+             [get-context-current-time get-seconds-per-beat lcm]]
+            [re-frame.core :refer [reg-event-db reg-event-fx]]))
 
 (def CURSOR-WIDTH 4)
+
+(reg-event-fx
+ :poly/fetch-local-storage
+ [standard-interceptors]
+ (fn [cofx [_]]
+   (when (storage-available? "localStorage")
+     (let [poly-tempo      (-> js/window
+                               .-localStorage
+                               (.getItem "poly_tempo"))
+           poly-num-div    (-> js/window
+                               .-localStorage
+                               (.getItem "poly_num_div"))
+           poly-den-div    (-> js/window
+                               .-localStorage
+                               (.getItem "poly_den_div"))
+           poly-verbose    (-> js/window
+                               .-localStorage
+                               (.getItem "poly_verbose")
+                               (#(.parse js/JSON %)))
+           tempo-dispatch  (if (some? poly-tempo)
+                             [:dispatch [:poly/set-tempo poly-tempo]]
+                             nil)
+           num-dispatch    (if (some? poly-num-div)
+                             [:dispatch
+                              [:poly/change-divisions {:divisions poly-num-div :which :numerator}]]
+                             nil)
+           den-dispatch    (if (some? poly-den-div)
+                             [:dispatch
+                              [:poly/change-divisions {:divisions poly-den-div
+                                                       :which     :denominator}]]
+                             nil)
+           merged-dispatch (into [] (remove nil? [num-dispatch den-dispatch tempo-dispatch]))]
+       {:db (-> (:db cofx)
+                (assoc-in [:polyrhythms :init?] true)
+                (#(when (some? poly-verbose)
+                    (assoc-in % [:polyrhythms :verbose?] poly-verbose))))
+        :fx merged-dispatch}))))
 
 (reg-event-fx :poly/change-divisions
               [standard-interceptors]
               (fn [cofx [_ new-values]]
                 (let [{:keys [divisions which]} new-values
-                      parsed-int (max 1 (js/parseInt divisions))
-                      db         (:db cofx)
-                      temp       (assoc {:numerator   (-> db
-                                                          :polyrhythms
-                                                          :numerator
-                                                          :divisions)
-                                         :denominator (-> db
-                                                          :polyrhythms
-                                                          :denominator
-                                                          :divisions)}
-                                        which
-                                        parsed-int)
-                      lcm        (lcm (:numerator temp) (:denominator temp))
-                      tempo      (-> db
-                                     :polyrhythms
-                                     :tempo)]
+                      parsed-int    (max 1 (js/parseInt divisions))
+                      db            (:db cofx)
+                      temp          (assoc {:numerator   (-> db
+                                                             :polyrhythms
+                                                             :numerator
+                                                             :divisions)
+                                            :denominator (-> db
+                                                             :polyrhythms
+                                                             :denominator
+                                                             :divisions)}
+                                           which
+                                           parsed-int)
+                      lcm           (lcm (:numerator temp) (:denominator temp))
+                      tempo         (-> db
+                                        :polyrhythms
+                                        :tempo)
+                      storage-label (case which
+                                      :numerator   "poly_num_div"
+                                      :denominator "poly_den_div")]
+                  (when (storage-available? "localStorage")
+                    (-> js/window
+                        .-localStorage
+                        (.setItem storage-label (.stringify js/JSON parsed-int))))
                   {:db (-> db
                            (assoc-in [:polyrhythms which :divisions] parsed-int)
                            (assoc-in [:polyrhythms :lcm] lcm))
@@ -38,7 +80,7 @@
                         [:dispatch
                          [:poly/update-input
                           [(-> ^js tempo
-                               (.mul divisions)
+                               (.mul parsed-int)
                                (.toFraction true))
                            which]]]]})))
 
@@ -83,18 +125,22 @@
                            old-tempo (get-in db [:polyrhythms :tempo])
                            num-div   (get-in db [:polyrhythms :numerator :divisions])
                            den-div   (get-in db [:polyrhythms :denominator :divisions])
-                           num-tempo (.mul tempo num-div)
-                           den-tempo (.mul tempo den-div)]
-                       {:db (assoc-in db [:polyrhythms :tempo] tempo)
+                           rectified (if (or (neg? (.-s ^js tempo))
+                                             (zero? (.-n ^js tempo)))
+                                       old-tempo
+                                       tempo)
+                           num-tempo (.mul ^js rectified num-div)
+                           den-tempo (.mul ^js rectified den-div)]
+                       {:db (assoc-in db [:polyrhythms :tempo] rectified)
                         :fx [[:dispatch
                               [:poly/check-diff
-                               (-> tempo
+                               (-> rectified
                                    (.sub old-tempo)
                                    .abs
                                    .valueOf)]]
                              [:dispatch
                               [:poly/update-input
-                               [(.toFraction tempo true)]]]
+                               [(.toFraction ^js rectified true)]]]
                              [:dispatch
                               [:poly/update-input
                                [(.toFraction num-tempo true) :numerator]]]
@@ -118,7 +164,11 @@
                            old-tempo  (get-in db [:polyrhythms :tempo])
                            num-div    (get-in db [:polyrhythms :numerator :divisions])
                            den-div    (get-in db [:polyrhythms :denominator :divisions])
-                           main-tempo (.div tempo num-div)
+                           rectified  (if (or (neg? (.-s ^js tempo))
+                                              (zero? (.-n ^js tempo)))
+                                        old-tempo
+                                        tempo)
+                           main-tempo (.div ^js rectified num-div)
                            den-tempo  (.mul main-tempo den-div)]
                        {:db (assoc-in db [:polyrhythms :tempo] main-tempo)
                         :fx [[:dispatch
@@ -132,7 +182,7 @@
                                [(.toFraction main-tempo true)]]]
                              [:dispatch
                               [:poly/update-input
-                               [(.toFraction tempo true) :numerator]]]
+                               [(.toFraction ^js rectified true) :numerator]]]
                              [:dispatch
                               [:poly/update-input
                                [(.toFraction den-tempo true) :denominator]]]]})
@@ -141,9 +191,9 @@
 (reg-event-fx :poly/update-numerator-tempo
               [check-spec-interceptor]
               (fn [cofx [_ delta]]
-                (let [num-string     (get-in cofx [:db :polyrhythms :numerator :input])
-                      num-tempo (Fraction. num-string)
-                      new-tempo (.add num-tempo delta)]
+                (let [num-string (get-in cofx [:db :polyrhythms :numerator :input])
+                      num-tempo  (Fraction. num-string)
+                      new-tempo  (.add num-tempo delta)]
                   {:fx [[:dispatch [:poly/set-numerator-tempo new-tempo]]]})))
 
 (reg-event-fx :poly/set-denominator-tempo
@@ -154,7 +204,11 @@
                            old-tempo  (get-in db [:polyrhythms :tempo])
                            num-div    (get-in db [:polyrhythms :numerator :divisions])
                            den-div    (get-in db [:polyrhythms :denominator :divisions])
-                           main-tempo (.div tempo den-div)
+                           rectified  (if (or (neg? (.-s ^js tempo))
+                                              (zero? (.-n ^js tempo)))
+                                        old-tempo
+                                        tempo)
+                           main-tempo (.div ^js rectified den-div)
                            num-tempo  (.mul main-tempo num-div)]
                        {:db (assoc-in db [:polyrhythms :tempo] main-tempo)
                         :fx [[:dispatch
@@ -171,15 +225,15 @@
                                [(.toFraction num-tempo true) :numerator]]]
                              [:dispatch
                               [:poly/update-input
-                               [(.toFraction tempo true) :denominator]]]]})
+                               [(.toFraction ^js rectified true) :denominator]]]]})
                      (catch :default _err nil))))
 
 (reg-event-fx :poly/update-denominator-tempo
               [check-spec-interceptor]
               (fn [cofx [_ delta]]
-                (let [den-string     (get-in cofx [:db :polyrhythms :denominator :input])
-                      den-tempo (Fraction. den-string)
-                      new-tempo (.add den-tempo delta)]
+                (let [den-string (get-in cofx [:db :polyrhythms :denominator :input])
+                      den-tempo  (Fraction. den-string)
+                      new-tempo  (.add den-tempo delta)]
                   {:fx [[:dispatch [:poly/set-denominator-tempo new-tempo]]]})))
 
 (reg-event-db :poly/toggle-playing
@@ -188,14 +242,25 @@
 
 (reg-event-db :poly/toggle-verbose?
               [check-spec-interceptor]
-              (fn [db [_ _]] (update-in db [:polyrhythms :verbose?] not)))
+              (fn [db [_]]
+                (when (storage-available? "localStorage")
+                  (-> js/window
+                      .-localStorage
+                      (.setItem "poly_verbose"
+                                (.stringify js/JSON (not (get-in db [:polyrhythms :verbose?]))))))
+                (update-in db [:polyrhythms :verbose?] not)))
 
 (reg-event-db
  :poly/update-input
  [check-spec-interceptor]
  (fn [db [_ [value type]]]
    (if (nil? type)
-     (assoc-in db [:polyrhythms :tempo-input] value)
+     (do
+       (when (storage-available? "localStorage")
+         (-> js/window
+             .-localStorage
+             (.setItem "poly_tempo" value)))
+       (assoc-in db [:polyrhythms :tempo-input] value))
      (assoc-in db [:polyrhythms type :input] value))))
 
 (reg-event-fx

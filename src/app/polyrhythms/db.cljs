@@ -32,9 +32,12 @@
 
 (s/def ::control-select #(contains? #{:main :numerator :denominator} %))
 
+(s/def ::init? boolean?)
+
 (s/def ::polyrhythms
   (s/keys :req-un
-          [::numerator
+          [::init?
+           ::numerator
            ::denominator
            ::lcm
            ::tempo
@@ -47,7 +50,8 @@
            ::cursor-ref]))
 
 
-(def db {:numerator {:divisions 3
+(def db {:init? false
+         :numerator {:divisions 3
                      :microbeat 0
                      :input "180"}
          :denominator {:divisions 2
