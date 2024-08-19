@@ -1,7 +1,16 @@
 (ns app.polyrhythms.common
-  (:require [cljs-bach.synthesis :as a]))
+  (:require [cljs-bach.synthesis :as a]
+            ["fraction.js" :as Fraction]))
 
 (def worker (atom (js/Worker. "./js/worker.js")))
+(def grid-x (atom {:start nil :width nil}))
+(def tempo (atom (Fraction. 0)))
+(def last-beat-time (atom 0))
+(def numerator (atom 3))
+(def numerator-microbeat (atom 0))
+(def denominator (atom 2))
+(def denominator-microbeat (atom 0))
+
 
 (defn get-seconds-per-beat
   ([tempo] (/ 60.0 tempo))

@@ -6,39 +6,40 @@
             [stylefy.core :as stylefy :refer [use-style]]
             [garden.color :as color]))
 
-(def menu-container-style
+(defn menu-container-style [mobile?]
   {:width    "100%"
    :position "fixed"
    :bottom   "0"
-   :height   "100px"
+   :height   (if mobile? "3.2rem" "100px")
    :z-index  "500"})
 
-(def menu-style
+(defn menu-style [mobile?]
   {:max-width        "1400px"
    :margin           "0 auto"
-   :height           "100px"
+   :height           (if mobile? "3.2rem" "100px")
    :width            "100%"
    :display          "flex"
    :align-items      "center"
    :justify-content  "center"
-   ;;  :border-top (str "2px solid" (color/as-hex (:1 colors)))
+   :border (str "2px solid" (color/as-hex (:1 colors)))
    :box-shadow       "0 -2px 16px rgba(0 0 0 / 0.8)"
    :background-color (:-2 colors)
    ;;  :overflow "hidden"
    :bottom           "0"
-   :border-radius "100px 100px 0 0"
-   })
+   :border-radius    "100px 100px 0 0"
+  })
 
-(def logo-container-style
-  {:border-radius    "120px"
+(defn logo-container-style [mobile?]
+  {:border-radius    "50%"
    :width            "fit-content"
    :padding          "5px"
    :display          "flex"
    :background-color (:1 colors)})
 
-(def logo-instance-style
-  {::stylefy/manual [:svg {:height "200px"
-                           :width  "200px"
+(defn logo-instance-style
+  [mobile?]
+  {::stylefy/manual [:svg {:height (if mobile? "6rem" "200px")
+                           :width  (if mobile? "6rem" "200px")
                            :fill   (:-2 colors)
                            :stroke (:-2 colors)}]})
 
@@ -55,13 +56,14 @@
 
 (defn menu
   []
-  [:div
-   (use-style menu-container-style)
-   [:div
-    (use-style menu-style)
+  (let [mobile? @(subscribe [:layout/mobile?])]
     [:div
-     (use-style logo-container-style)
-     [logo-instance (use-style logo-instance-style)]]]])
+     (use-style (menu-container-style mobile?))
+     [:div
+      (use-style (menu-style mobile?))
+      [:div
+       (use-style (logo-container-style mobile?))
+       [logo-instance (use-style (logo-instance-style mobile?))]]]]))
 
 (defn app
   []

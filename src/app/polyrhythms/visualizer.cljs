@@ -153,6 +153,8 @@
     {:color              (:0 colors)
      :background-color   (:-3 colors)
      :box-shadow         "inset 0 0 8px rgba(0 0 0 / 0.5)"
+     :border-top         "1.5px solid transparent"
+     :border-bottom      "1.5px solid transparent"
      :border-radius      "4px"
      :display            "grid"
      :grid-template-columns (str "minmax(0, "
@@ -174,8 +176,8 @@
         denominator     @(subscribe [:poly/denominator-divisions])
         total-divisions @(subscribe [:poly/lcm])
         mobile?         @(subscribe [:layout/mobile?])]
-    [:div
-     (use-style (get-grid-style total-divisions mobile?) {:id "grid"})
+    [:div#grid
+     (use-style (get-grid-style total-divisions mobile?))
      [generate-numbers {:ticks numerator
                         :total total-divisions
                         :which :numerator

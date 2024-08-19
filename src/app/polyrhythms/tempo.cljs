@@ -20,12 +20,12 @@
   [angle ref]
   (let [canvas (.-current ref)]
     (if (some? canvas)
-      (let [context (.getContext canvas "2d")
-            scale   (/ js/Math.PI 3)
+      (let [context  (.getContext canvas "2d")
+            scale    (/ js/Math.PI 3)
             gradient (.createLinearGradient context 0 0 300 0)]
         (.clearRect context 0 0 (.-width canvas) (.-height canvas))
         (dorun
-         (for [arr (range -5 5.5 0.5)
+         (for [arr  (range -5 5.5 0.5)
                :let [curve (-> arr
                                (* 2)
                                (/ 10)
@@ -41,7 +41,9 @@
                                (* -0.35)
                                (+ 0.42)
                                (* 255))]]
-           (.addColorStop ^js gradient curve (str "rgb(" color ", " (* 1.1 color) ", " (* 1.2 color) ")"))))
+           (.addColorStop ^js gradient
+                          curve
+                          (str "rgb(" color ", " (* 1.1 color) ", " (* 1.2 color) ")"))))
         (set! (.-strokeStyle context) "none")
         (set! (.-fillStyle context) gradient)
         (.beginPath context)
@@ -50,8 +52,7 @@
         (set! (.-fillStyle context) "none")
         (dorun
          (for [arr  (range -5 6 0.5)
-               :let [
-                     val   (-> arr
+               :let [val   (-> arr
                                (* 2)
                                (+ angle)
                                (/ 10)
@@ -79,24 +80,25 @@
                                (/ (/ (js/Math.sqrt 3) 2))
                                (* (/ slider-width 2))
                                (+ (/ slider-width 2)))
-                     ]]
+                    ]]
            (do (set!
                 (.-strokeStyle context)
                 ;; (str "rgba(0, 0, 0, " (- 1 (js/Math.abs (js/Math.sin val))) ")")
                 "rgba(0 0 0 / 0.75)"
-                )
+               )
 
                (set! (.-lineWidth context) width)
                (.beginPath context)
                (.moveTo context pos 0)
                (.lineTo context pos slider-height)
-               (.stroke context)))) )
+               (.stroke context)))))
       nil)))
 
-(def canvas-style {:margin "0 2rem"
-                   :border-radius "4px"
-                   :border-top "1px solid rgba(255 255 255 / 0.2)"
-                   :border-bottom "1px solid rgba(0 0 0 / 0.4)"})
+(def canvas-style
+  {:margin        "0 auto"
+   :border-radius "4px"
+   :border-top    "1px solid rgba(255 255 255 / 0.2)"
+   :border-bottom "1px solid rgba(0 0 0 / 0.4)"})
 
 (defn slider-canvas
   [current-tempo mouse-down? control-select]
@@ -164,7 +166,9 @@
         changeFn #(dispatch [:poly/set-tempo %])
         inputFn  #(dispatch [:poly/update-input [%]])
         wheelFn  (fn [ev]
-                   (-> ev .-target .focus)
+                   (-> ev
+                       .-target
+                       .focus)
                    (let [in-delta  (.-deltaY ev)
                          out-delta (if (pos? in-delta) -1 1)]
                      (dispatch [:poly/update-tempo out-delta])))]
@@ -195,7 +199,9 @@
         changeFn #(dispatch [:poly/set-numerator-tempo %])
         inputFn  #(dispatch [:poly/update-input [% :numerator]])
         wheelFn  (fn [ev]
-                   (-> ev .-target .focus)
+                   (-> ev
+                       .-target
+                       .focus)
                    (let [in-delta  (.-deltaY ev)
                          out-delta (if (pos? in-delta) -1 1)]
                      (dispatch [:poly/update-numerator-tempo out-delta])))]
@@ -226,7 +232,9 @@
         changeFn #(dispatch [:poly/set-denominator-tempo %])
         inputFn  #(dispatch [:poly/update-input [% :denominator]])
         wheelFn  (fn [ev]
-                   (-> ev .-target .focus)
+                   (-> ev
+                       .-target
+                       .focus)
                    (let [in-delta  (.-deltaY ev)
                          out-delta (if (pos? in-delta) -1 1)]
                      (dispatch [:poly/update-denominator-tempo out-delta])))]
@@ -259,9 +267,10 @@
    :gap             "1rem"
    :align-items     "center"})
 
-(def radio-style {:position "relative"
-                  :color (color/as-hex (:1 colors))
-                  ::stylefy/manual (mui-radio-style)})
+(def radio-style
+  {:position        "relative"
+   :color           (color/as-hex (:1 colors))
+   ::stylefy/manual (mui-radio-style)})
 
 (defn radio-group
   [control-select]
@@ -274,8 +283,8 @@
      [:>
       Radio
       (use-style radio-style
-                 {:checked   (= control-select :denominator)
-                  :value     "denominator"
+                 {:checked   (= control-select :numerator)
+                  :value     "numerator"
                   :on-change on-change})]
      [:>
       Radio
@@ -286,17 +295,17 @@
      [:>
       Radio
       (use-style radio-style
-                 {:checked   (= control-select :numerator)
-                  :value     "numerator"
+                 {:checked   (= control-select :denominator)
+                  :value     "denominator"
                   :on-change on-change})]]))
 
 
-(defn handle-play-click
-  [_]
-  (if (= (.-state audio-context) "suspended")
-    (-> (.resume audio-context)
-        (.then (play)))
-    (play)))
+(defn handle-play-click [play?]
+  (fn [_]
+    (if (= (.-state audio-context) "suspended")
+      (-> (.resume audio-context)
+          (.then (play play?)))
+      (play play?))))
 
 (defn tempo-play-group
   []
@@ -317,9 +326,9 @@
      (use-style nil)
      [:div
       (use-style tempo-play-style)
-      [den-tempo mobile? control-select]
+      [num-tempo mobile? control-select]
       [tempo-control mobile? control-select]
-      [num-tempo mobile? control-select]]
+      [den-tempo mobile? control-select]]
      [radio-group control-select]
      [:div
       (use-style {:text-align "center" :margin "1rem auto"}
@@ -328,9 +337,9 @@
      [:div
       (use-style {:text-align "center"})
       (if playing?
-        [pause-button {:on-click handle-play-click
+        [pause-button {:on-click (handle-play-click false)
                        :width    button-width
                        :height   button-height}]
-        [play-button {:on-click handle-play-click
+        [play-button {:on-click (handle-play-click true)
                       :width    button-width
                       :height   button-height}])]]))

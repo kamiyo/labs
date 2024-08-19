@@ -14,7 +14,7 @@
 
 (defn- input-style
   [mobile?]
-  {:width "6rem"
+  {:width (if mobile? "4rem" "6rem")
    :scrollbar-width "thin"
    ::stylefy/manual (mui-override-style false)})
 
@@ -31,7 +31,9 @@
      :variant  "outlined"
      :margin   "dense"
      :min      1
-     :on-wheel #(-> % .-target .focus)
+     :on-wheel #(-> %
+                    .-target
+                    .focus)
      :onChange #(dispatch [:poly/change-divisions {:divisions (.. % -target -value)
                                                    :which     type}])})])
 
@@ -68,13 +70,20 @@
 (defn- control-group-style
   [mobile?]
   {:display         "flex"
-   :justify-content "space-evenly"
-   :padding-top     "0.3rem"
-   :margin-bottom   (if mobile? "0" "2rem")})
+   :justify-content "center"
+   :gap             "1rem"
+   :align-items     "center"
+   :padding         (str "0.3rem " (if mobile? "1rem" "4rem"))
+   :margin-bottom   (if mobile? "0" "1rem")})
+
+(defn- lcm-container
+  [mobile?]
+  {:margin "auto"})
 
 (defn- lcm-display-style
   [mobile?]
-  {::stylefy/manual (merge (mui-override-style false) spinner-selector)})
+  {:width (if mobile? "4rem" "6rem")
+   ::stylefy/manual (merge (mui-override-style false) spinner-selector)})
 
 (defn lcm-display
   [total-divisions mobile?]
@@ -83,7 +92,7 @@
    (use-style
     (lcm-display-style mobile?)
     {:type     "number"
-     :label    "least common multiple"
+     :label    (if mobile? "lcm" "least common multiple")
      :value    total-divisions
      :variant  "outlined"
      :margin   "dense"
@@ -93,9 +102,29 @@
   [numerator denominator total-divisions mobile?]
   [:div
    (use-style (control-group-style mobile?))
-   (selector :denominator denominator mobile?)
-   (lcm-display total-divisions mobile?)
-   (selector :numerator numerator mobile?)])
+   [:div#left-bracket (use-style {:flex "1 1 auto"
+                                  :height "4rem"
+                                  :border-style "solid"
+                                  :border-color (:0 colors)
+                                  :border-width "1px 0 0 1px"
+                                  :border-radius "4px 0 0"})]
+   [:div
+    (use-style {:display "flex" :flex-direction "column"})
+    [:div#ratio
+     (use-style {:display "flex" :justify-content "center" :gap "1rem" :align-items "center"})
+     (selector :numerator numerator mobile?)
+     [:span (use-style {:color (:0 colors) :font-size "2.5rem"}) ":"]
+     (selector :denominator denominator mobile?)]
+    [:div
+     (use-style (lcm-container mobile?))
+     (lcm-display total-divisions mobile?)]]
+   [:div#right-bracket (use-style {:flex "1 1 auto"
+                                   :height "4rem"
+                                   :border-style "solid"
+                                   :border-color (:0 colors)
+                                   :border-width "1px 1px 0 0"
+                                   :border-radius "0 4px 0 0"})]
+  ])
 
 (defn- cursor-style
   [playing?]
@@ -105,23 +134,6 @@
    :position         "fixed"
    :opacity          (if playing? "0.65" "0")
    :margin           "0"})
-
-;; (defn rerender-cursor
-;;   [ref num-divisions cursor-width]
-;;   #(when (some? ref)
-;;      (let [ref         ref
-;;            el-00-rec   (.getBoundingClientRect (js/document.getElementById "00"))
-;;            start-x     (- (.-left el-00-rec) (/ cursor-width 2))
-;;            width-x     (* (.-width el-00-rec) @num-divisions)
-;;            grid-el-rec (.getBoundingClientRect (js/document.getElementById "grid"))
-;;            height      (.-height grid-el-rec)
-;;            start-y     (+ (.-top grid-el-rec) (.-scrollY js/window))]
-;;        (js/console.log "rerender" start-x)
-;;        (dispatch [:poly/update-grid-x [start-x width-x]])
-;;       ;;  (swap! grid-x assoc :start start-x :width width-x)
-;;        (set! (.. ref -style -left) (str start-x "px"))
-;;        (set! (.. ref -style -top) (str start-y "px"))
-;;        (.setAttribute ref "size" height))))
 
 (defn cursor
   [playing?]
@@ -136,13 +148,14 @@
   [mobile?]
   (let []
     {:max-width        "1200px"
+     :width            "calc(100% - 2rem)"
      :margin           "1rem auto"
      :background-color (:-2 colors)
      :box-shadow       "0 0 6px rgba(0 0 0 / 0.5)"
      :border-radius    "5px"
      :font-family      "lato-light, sans-serif"
      :box-sizing       "border-box"
-     :max-height       (px 800)
+    ;;  :max-height       (px 800)
      :display          "flex"
      :min-height       "0"
      :flex-direction   "column"

@@ -2,9 +2,9 @@
   (:require ["fraction.js" :as Fraction]
             [app.common :refer [storage-available?]]
             [app.events :refer [check-spec-interceptor standard-interceptors]]
-            [app.polyrhythms.common
+            [app.polyrhythms.common :as common
              :refer
-             [get-context-current-time get-seconds-per-beat lcm]]
+             [get-context-current-time get-seconds-per-beat lcm grid-x]]
             [re-frame.core :refer [reg-event-db reg-event-fx]]))
 
 (def CURSOR-WIDTH 4)
@@ -73,6 +73,9 @@
                     (-> js/window
                         .-localStorage
                         (.setItem storage-label (.stringify js/JSON parsed-int))))
+                  (case which
+                    :numerator (reset! common/numerator divisions)
+                    :denominator (reset! common/denominator divisions))
                   {:db (-> db
                            (assoc-in [:polyrhythms which :divisions] parsed-int)
                            (assoc-in [:polyrhythms :lcm] lcm))
@@ -86,11 +89,17 @@
 
 (reg-event-db :poly/inc-microbeat
               [standard-interceptors]
-              (fn [db [_ which]] (update-in db [:polyrhythms which :microbeat] inc)))
+              (fn [db [_ which]]
+                (case which
+                  :numerator (swap! common/numerator-microbeat inc)
+                  :denominator (swap! common/denominator-microbeat inc))
+                (update-in db [:polyrhythms which :microbeat] inc)))
 
 (reg-event-db :poly/reset-microbeats
               [standard-interceptors]
               (fn [db [_ _]]
+                (reset! common/numerator-microbeat 0)
+                (reset! common/denominator-microbeat 0)
                 (-> db
                     (assoc-in [:polyrhythms :numerator :microbeat] 0)
                     (assoc-in [:polyrhythms :denominator :microbeat] 0))))
@@ -101,15 +110,23 @@
  (fn [db [_ _]]
    (let [{num-microbeat :microbeat num-divisions :divisions} (get-in db [:polyrhythms :numerator])
          {den-microbeat :microbeat den-divisions :divisions} (get-in db [:polyrhythms :denominator])
-         tempo (get-in db [:polyrhythms :tempo])]
+         tempo (get-in db [:polyrhythms :tempo])
+         new-num (mod num-microbeat num-divisions)
+         new-den (mod den-microbeat den-divisions)
+         new-sbp (get-seconds-per-beat (.valueOf tempo))]
+     (reset! common/numerator-microbeat new-num)
+     (reset! common/denominator-microbeat new-den)
+     (swap! common/last-beat-time + new-sbp)
      (-> db
-         (assoc-in [:polyrhythms :numerator :microbeat] (mod num-microbeat num-divisions))
-         (assoc-in [:polyrhythms :denominator :microbeat] (mod den-microbeat den-divisions))
-         (update-in [:polyrhythms :last-beat-time] + (get-seconds-per-beat (.valueOf tempo)))))))
+         (assoc-in [:polyrhythms :numerator :microbeat] new-num)
+         (assoc-in [:polyrhythms :denominator :microbeat] new-den)
+         (update-in [:polyrhythms :last-beat-time] + new-sbp)))))
 
 (reg-event-db :poly/change-last-beat-time
               [check-spec-interceptor]
-              (fn [db [_ new-value]] (assoc-in db [:polyrhythms :last-beat-time] new-value)))
+              (fn [db [_ new-value]]
+                (reset! common/last-beat-time new-value)
+                (assoc-in db [:polyrhythms :last-beat-time] new-value)))
 
 (reg-event-fx
  :poly/check-diff
@@ -131,6 +148,7 @@
                                        tempo)
                            num-tempo (.mul ^js rectified num-div)
                            den-tempo (.mul ^js rectified den-div)]
+                       (reset! common/tempo rectified)
                        {:db (assoc-in db [:polyrhythms :tempo] rectified)
                         :fx [[:dispatch
                               [:poly/check-diff
@@ -170,6 +188,7 @@
                                         tempo)
                            main-tempo (.div ^js rectified num-div)
                            den-tempo  (.mul main-tempo den-div)]
+                       (reset! common/tempo main-tempo)
                        {:db (assoc-in db [:polyrhythms :tempo] main-tempo)
                         :fx [[:dispatch
                               [:poly/check-diff
@@ -210,6 +229,7 @@
                                         tempo)
                            main-tempo (.div ^js rectified den-div)
                            num-tempo  (.mul main-tempo num-div)]
+                       (reset! common/tempo main-tempo)
                        {:db (assoc-in db [:polyrhythms :tempo] main-tempo)
                         :fx [[:dispatch
                               [:poly/check-diff
@@ -276,7 +296,8 @@
              grid-el-rec (.getBoundingClientRect (js/document.getElementById "grid"))
              height      (.-height grid-el-rec)
              start-y     (+ (.-top grid-el-rec) (.-scrollY js/window))]
-         (js/console.log "rerender" start-x width-x)
+        ;;  (js/console.log "rerender" start-x width-x)
+         (reset! common/grid-x {:start start-x :width width-x})
          (set! (.. ref -style -left) (str start-x "px"))
          (set! (.. ref -style -top) (str start-y "px"))
          (.setAttribute ref "size" height)
